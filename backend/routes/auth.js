@@ -3,13 +3,14 @@ const User = require('../models/User');
 const router = express.Router();
 const { validationResult, body } = require('express-validator');
 const bcrypt = require('bcrypt');
-const jwt = require('json-web-token');
+const jwt = require('jsonwebtoken');
+const fetchUser = require('../middleware/fetchUser');
 
 const JWT_SECRET = "MOSfetNIKisGooD";
 
 //Creating a User using : POST "/api/auth/"  auth does't require
 
-//Validate the name , email and password-- 
+//========================================= Creating a User ==============================
 
 router.post('/createUser', [
     body('name')
@@ -36,7 +37,7 @@ router.post('/createUser', [
         const secPass = await bcrypt.hash(req.body.password, salt)
 
         // creating a valid User  
-        await User.create({
+        user = await User.create({
             name: req.body.name,
             email: req.body.email,
             password: secPass
@@ -45,17 +46,17 @@ router.post('/createUser', [
         const data = {
 
             user: {
-                id: User.id
+                id: user.id
             }
         }
 
 
         // Creating a authentation token for user
-        const authToken = jwt.encode(JWT_SECRET, data);
+        const authToken = jwt.sign(data, JWT_SECRET);
         res.json({ authToken })
     })
 
-//Authanitation a user using post request
+//================================== login a user using post request ==================================
 
 router.post('/login', [
 
@@ -76,16 +77,16 @@ router.post('/login', [
 
 
 
-        let { email, password } = req.body;
- 
+        const { email, password } = req.body;
+
         try {
-            let user =  User.findOne({ email });
+            let user = await User.findOne({ email });
             if (!user) {
 
                 return res.status(400).json({ error: "Plese Enter Correct email and password" });
             }
 
-            const passwordCompare =  bcrypt.compare(password, user.password);
+            const passwordCompare = await bcrypt.compare(password, user.password);
             if (!passwordCompare) {
                 return res.status(400).json({ error: "Plese Enter Correct email and password" });
             }
@@ -93,24 +94,39 @@ router.post('/login', [
             const data = {
 
                 user: {
-                    id: User.id
+                    id: user.id
                 }
             }
 
-            const authToken = jwt.encode(JWT_SECRET, data);
+            const authToken = jwt.sign(data, JWT_SECRET);
             res.json({ authToken })
 
         } catch (error) {
 
             console.error(error.massage);
-            res.send(500).send("Internal server error");
-
+            res.status(500).send("Internal server error");
 
         }
+    });
+
+//Route 3 
+
+router.post('/getUser', fetchUser,
 
 
+    async (req, res) => {
 
+        try {
+            userId = req.user.id;
+            const user = await User.findById(userId).select("-password")
+            res.send(user)
 
+            //if there are error the ruturn (bad request) error
+            
+        } catch (error) {
+            console.error(error.massage)
+            res.status(500).send("Interenal Server Error")
+        }
     })
 
 
